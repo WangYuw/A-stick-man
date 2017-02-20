@@ -30,12 +30,16 @@ class Game:
                     draw = 1
         self.sprites = []
         self.running = True
+        self.win_text = self.canvas.create_text(150, 45, text='You Win!', state='hidden')
 
     def mainloop(self):
         while 1:
             if self.running == True:
                 for sprite in self.sprites:
                     sprite.move()
+            else:
+                time.sleep(1)
+                self.canvas.itemconfig(self.win_text, state='normal')
             self.tk.update_idletasks()
             self.tk.update()
             time.sleep(0.01)
@@ -93,9 +97,139 @@ class StickManSprite(Sprite):
         self.coordinates = Coords()
         game.canvas.bind_all('<KeyPress-Left>', self.turn_left)
         game.canvas.bind_all('<KeyPress-Right>', self.turn_right)
-        game.canvas.bind_all('<KeyPress-Up>', self.jump)
         game.canvas.bind_all('<space>', self.jump)
-        
+
+    def turn_left(self, evt):
+        if self.y == 0:
+            self.x = -2
+
+    def turn_right(self, evt):
+        if self.y == 0:
+            self.x = 2
+
+    def jump(self, evt):
+        if self.y == 0:
+            self.y = -4
+            self.jump_count = 0
+
+    # juge way of move and change image
+    def animate(self):
+        # if the stick man move or jump
+        if self.x !=0 and self.y == 0:
+            # if draw next image
+            if time.time() - self.last_time > 0.1:
+                # recount time
+                self.last_time = time.time()
+                self.current_image += self.current_image_add
+                if self.current_image >= 2:
+                    self.current_image_add = -1
+                if self.current_image <= 0:
+                    self.current_image_add = 1
+        if self.x < 0:
+            if self.y != 0:
+                self.game.canvas.itemconfig(self.image, image=self.image_left[2])
+            else:
+                self.game.canvas.itemconfig(self.image, image=self.image_left[self.current_image])
+        elif self.x > 0:
+            if self.y != 0:
+                self.game.canvas.itemconfig(self.image, image=self.image_right[2])
+            else:
+                self.game.canvas.itemconfig(self.image, image=self.image_right[self.current_image])
+
+    def coords(self):
+        xy = list(self.game.canvas.coords(self.image))
+        self.coordinates.x1 = xy[0]
+        self.coordinates.y1 = xy[1]
+        self.coordinates.x2 = xy[0] + 27
+        self.coordinates.y2 = xy[1] + 30
+        return self.coordinates
+
+    def move(self):
+        self.animate()
+        # is jumping
+        if self.y < 0:
+            self.jump_count += 1
+            if self.jump_count > 20:
+                self.y = 4
+            # is falling
+        if self.y > 0:
+            self.jump_count -= 1
+        co = self.coords()
+        left = True
+        right = True
+        top = True
+        bottom = True
+        falling = True
+        # fall down the bottom of the canvas
+        if self.y > 0 and co.y2 >= self.game.canvas_height:
+            self.y = 0
+            bottom = False
+        # jump to the top of canvas
+        elif self.y < 0 and co.y1 <= 0:
+            self.y = 0
+            top = False
+        # collid left or right
+        if self.x > 0 and co.x2 >= self.game.canvas_width:
+            self.x = 0
+            right =  False
+        elif self.x < 0 and co.x1 <= 0:
+            self.x = 0
+            left = False
+        # collid to other sprites
+        for sprite in self.game.sprites:
+            if sprite == self:
+                continue
+            sprite_co = sprite.coords()
+            # not top and is jumping and stick man collid sprite by top
+            if top and self.y < 0 and collided_top(co, sprite_co):
+                self.y = -self.y
+                top = False
+            if bottom and self.y > 0 and collided_bottom(self.y, co, sprite_co):
+                self.y = sprite_co.y1 - co.y2
+                if self.y < 0:
+                    self.y = 0
+                bottom = False
+                top = False
+            if bottom and falling and self.y == 0 and co.y2 < self.game.canvas_height and collided_bottom(1, co, sprite_co):
+                falling = False
+            if left and self.x < 0 and collided_left(co, sprite_co):
+                self.x = 0
+                left = False
+                if sprite.endgame:
+                    self.win(sprite)
+            if right and self.x > 0 and collided_right(co, sprite_co):
+                self.x = 0
+                right = False
+                if sprite.endgame:
+                    self.win(sprite)
+        if falling and bottom and self.y == 0 and co.y2 < self.game.canvas_height:
+            self.y = 4
+        self.game.canvas.move(self.image, self.x, self.y)
+
+    def win(self, sprite):
+        self.game.running = False
+        sprite.opendoor()
+        time.sleep(1)
+        self.game.canvas.itemconfig(self.game, state='hidden')
+        sprite.closedoor()
+
+class DoorSprite(Sprite):
+    
+    def __init__(self, game, x, y, width, height):
+        Sprite.__init__(self, game)
+        self.close_door = PhotoImage(file="roles/door1.gif")
+        self.open_door = PhotoImage(file="roles/door2.gif")
+        self.image = game.canvas.create_image(x, y, image=self.close_door, anchor='nw')
+        self.coordinates = Coords(x, y, x+width/2, y+height)
+        self.endgame = True
+
+    def opendoor(self):
+        self.game.canvas.itemconfig(self.image, image=self.open_door)
+        self.game.tk.update_idletasks()
+
+    def closedoor(self):
+        self.game.canvas.itemconfig(self.image, image=self.close_door)
+        self.game.tk.update_idletasks()     
         
 
 #if two sprites have the same part on x
@@ -142,9 +276,6 @@ def collided_bottom(y, co1, co2):
         if y_calc >= co2.y1 and y_calc <= co2.y2:
             return True
     return False
-        
-
-        
 
 g = Game()
 
@@ -170,5 +301,11 @@ g.sprites.append(platform8)
 g.sprites.append(platform9)
 g.sprites.append(platform10)
 g.sprites.append(platform11)
+
+door = DoorSprite(g, 45, 30, 40, 35)
+g.sprites.append(door)
+
+s =StickManSprite(g)
+g.sprites.append(s)
 
 g.mainloop()
