@@ -210,7 +210,7 @@ class StickManSprite(Sprite):
         self.game.running = False
         sprite.opendoor()
         time.sleep(1)
-        self.game.canvas.itemconfig(self.game, state='hidden')
+        self.game.canvas.itemconfig(self.image, state='hidden')
         sprite.closedoor()
 
 class DoorSprite(Sprite):
