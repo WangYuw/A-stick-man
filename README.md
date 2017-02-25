@@ -5,3 +5,4 @@ You can use right and left to move, space to jump. You will win if you arrive at
 
 ![Game](/stickman.PNG)
 
+I learned it from the book "Python for kids"
